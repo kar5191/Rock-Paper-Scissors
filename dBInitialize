@@ -1,0 +1,20 @@
+package com.example.rps;
+import android.provider.BaseColumns;
+
+
+public class Databaseoptns {
+	public Databaseoptns(){
+		
+	}
+	
+	public static abstract class DatabaseInfo implements BaseColumns {
+		public static final String USER_NAME = "user_name";
+		public static final String USER_AGE = "user_age";
+		public static final String USER_SEX = "user_sex";
+		public static final String DATABASE_NAME = "rps_game";
+		public static final String TABLE_NAME = "user_info";
+		public static final String USER_WON = "user_won";
+		public static final String USER_LOST = "user_lost";
+	}
+
+}
