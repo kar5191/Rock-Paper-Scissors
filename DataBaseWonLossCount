@@ -1,0 +1,82 @@
+package com.example.rps;
+import com.example.rps.Databaseoptns.DatabaseInfo;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.os.Environment;
+
+public class DatabaseOperations extends SQLiteOpenHelper {
+
+	public static final int database_version = 1;
+	public String CREATE_QUERY = "CREATE TABLE " + DatabaseInfo.TABLE_NAME + "(" + DatabaseInfo.USER_NAME + " TEXT PRIMARY KEY," + DatabaseInfo.USER_AGE + " INTEGER," + DatabaseInfo.USER_SEX + " TEXT," + DatabaseInfo.USER_WON + " INTEGER DEFAULT 0," + DatabaseInfo.USER_LOST + " INTEGER DEFAULT 0);";   
+	
+	public DatabaseOperations(Context context) {
+		super(context,Environment.getExternalStorageDirectory()+"/rps/"+DatabaseInfo.DATABASE_NAME, null, database_version);
+		// TODO Auto-generated constructor stub
+	}
+
+	@Override
+	public void onCreate(SQLiteDatabase db) {
+		// TODO Auto-generated method stub
+		db.execSQL(CREATE_QUERY);
+	}
+
+	@Override
+	public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+		// TODO Auto-generated method stub
+
+	}
+	
+	public void insertInfo(DatabaseOperations dbo, String usrname, String usrage, String usrsex) {
+		SQLiteDatabase sqdb = dbo.getWritableDatabase();
+		
+		ContentValues values = new ContentValues();
+		values.put(DatabaseInfo.USER_NAME, usrname);
+		values.put(DatabaseInfo.USER_AGE, usrage);
+		values.put(DatabaseInfo.USER_SEX, usrsex);
+		
+		sqdb.insert(Databaseoptns.DatabaseInfo.TABLE_NAME, null, values);
+		
+	}
+
+	public Cursor retrieveInfo( DatabaseOperations dbo ){
+		SQLiteDatabase sqld = dbo.getReadableDatabase();
+		String[] columns = {DatabaseInfo.USER_NAME, DatabaseInfo.USER_AGE, DatabaseInfo.USER_SEX, DatabaseInfo.USER_WON, DatabaseInfo.USER_LOST};
+		Cursor cursor = sqld.query(DatabaseInfo.TABLE_NAME, columns, null, null, null, null, null);
+		
+		return cursor;
+	}
+	
+	public Cursor retSpcfInfo( DatabaseOperations dbp, String username ){
+		SQLiteDatabase sqld = dbp.getReadableDatabase();
+		String query = " SELECT "+ DatabaseInfo.USER_WON + ", " + DatabaseInfo.USER_LOST + " FROM " + DatabaseInfo.TABLE_NAME + " WHERE " + DatabaseInfo.USER_NAME + "= '" + username + "'";
+		Cursor cursor = sqld.rawQuery(query, null);
+		
+		return cursor;
+	}
+
+	public void updateWinInfo(DatabaseOperations dop, String userid, int win_count){
+		SQLiteDatabase sqld = dop.getWritableDatabase();
+		
+		ContentValues updvals = new ContentValues();
+		
+		updvals.put(DatabaseInfo.USER_WON, win_count);
+		
+		sqld.update(DatabaseInfo.TABLE_NAME, updvals, DatabaseInfo.USER_NAME + "='" + userid + "'", null);
+	}
+	
+	public void updateLossInfo(DatabaseOperations dto, String userid, int loss_count){
+		SQLiteDatabase sqll = dto.getWritableDatabase();
+		
+		ContentValues losvals = new ContentValues();
+		
+		losvals.put(DatabaseInfo.USER_LOST, loss_count);
+		
+		sqll.update(DatabaseInfo.TABLE_NAME, losvals, DatabaseInfo.USER_NAME + "='" + userid + "'", null);
+		
+	}
+	
+}
