@@ -4,52 +4,44 @@ import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
 
-import android.support.v7.app.ActionBarActivity;
-import android.content.BroadcastReceiver;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
+import android.database.Cursor;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.speech.RecognizerIntent;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
-import android.widget.ArrayAdapter;
+import android.view.View.OnClickListener;
 import android.widget.Button;
-import android.widget.ImageButton;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 
-public class MainActivity extends ActionBarActivity implements SensorEventListener{
-
-	SensorManager sensorManager = null;
-	TextView oriX, oriY, oriZ;
-	TextView accX, accY, accZ;
-	Float azimut;
-	boolean singlePlayer = false;
-	
+public class BluetoothGameScreen extends Activity{
+	static final int check =1111;
+	static final String rock = "rock";
+	static final String scissor = "scissors";
+	static final String paper = "paper";
+	static final String won = "won";
+	static final String lost = "lost";
+	static final String[] possibles = {"rock", "paper", "scissors"};
+	String name;
+	Context cntxt = this;
+	Button play;
+	Button score;
+	BluetoothDevice device;
+	private BluetoothGameService mGameService = null;
 	private String mConnectedDeviceName = null;
-	private static final int handRock     = 0;
-	private static final int handPaper    = 1;
-	private static final int handScissors = 2;
-	private static int writecount=0;
-	private static int readcount=0;
-	private static String result="";
-	private static String readstring="";
-	private static String writestring="";
-	
-	private static final int REQUEST_CONNECT_DEVICE = 1;
-	private static final int REQUEST_ENABLE_BT      = 2;
+	private BluetoothAdapter mAdapter = null;
+	private boolean game_complete = false;
 	
     // Message types sent from the BluetoothGameService Handler
     public static final int MESSAGE_STATE_CHANGE = 1;
@@ -60,190 +52,154 @@ public class MainActivity extends ActionBarActivity implements SensorEventListen
     public static final String DEVICE_NAME = "device_name";
     public static final String TOAST = "toast";
     
-	BluetoothAdapter btAdp = BluetoothAdapter.getDefaultAdapter();
-	private BluetoothGameService mGameService = null;
+	private static int writecount=0;
+	private static int readcount=0;
+	private static String result="";
+	private static String readstring="";
+	private static String writestring="";
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_game_play_screen);
 		
-		if(btAdp == null){
-			Toast.makeText(MainActivity.this, "No BlueTooth adapter found", Toast.LENGTH_LONG).show();
-		}
+		name = getIntent().getStringExtra("user");
+		device = getIntent().getParcelableExtra("device");		
 		
-		final ArrayList<String> list = new ArrayList<String>();
-        
-		sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-		setContentView(R.layout.activity_main);
-		oriX = (TextView) findViewById(R.id.textView1);
-		oriY = (TextView) findViewById(R.id.textView4);
-		oriZ = (TextView) findViewById(R.id.textView5);
+		TextView txtlabel = (TextView)findViewById(R.id.textlabl);
+		txtlabel.setText("Welcome " + name);
 		
-		accX = (TextView) findViewById(R.id.accX);
-		accY = (TextView) findViewById(R.id.accY);
-		accZ = (TextView) findViewById(R.id.accZ);
+		mGameService = new BluetoothGameService(this, mHandler);
+		mGameService.connect(device);
 		
-		final Button button = (Button) findViewById(R.id.button1);
-        /*button.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-            	Button play = (Button)findViewById(R.id.button1);
-            	TextView tv = (TextView)findViewById(R.id.textView2); //Get Ready
-            	
-	            Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-	            discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
-	            startActivityForResult(discoverableIntent, REQUEST_ENABLE_BT);
-            	
-            	play.setVisibility(View.INVISIBLE);
-            	tv.setVisibility(View.INVISIBLE);
-            }
-        });*/
 		
-		oriX.setVisibility(View.INVISIBLE);
-		oriY.setVisibility(View.INVISIBLE);
-		oriZ.setVisibility(View.INVISIBLE);
-		accX.setVisibility(View.INVISIBLE);
-		accY.setVisibility(View.INVISIBLE);
-		accZ.setVisibility(View.INVISIBLE);
-		button.setVisibility(View.INVISIBLE);
+		play = (Button)findViewById(R.id.play);
+		play.setOnClickListener(new OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				// TODO Auto-generated method stub
+				Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+				i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+				startActivityForResult(i, check);
+				
+			}
+		});
 		
-	}
-    @Override
-    public void onStart() {
-        super.onStart();
-        if (!btAdp.isEnabled()) {
-            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
-        } else {
-    		if (mGameService == null) setupGame();
-        }
-    }
-	@Override
-	public synchronized void onResume(){
-		super.onResume();
-		sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), sensorManager.SENSOR_DELAY_FASTEST);
-		sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), sensorManager.SENSOR_DELAY_FASTEST);
+		score = (Button)findViewById(R.id.score);
+		score.setOnClickListener(new OnClickListener() {
+			
+			@Override
+			public void onClick(View va) {
+				// TODO Auto-generated method stub
+				DatabaseOperations DBP = new DatabaseOperations(cntxt);
+				
+				Cursor cursor = DBP.retSpcfInfo(DBP, name);
+				cursor.moveToFirst();
+				int show_win = cursor.getInt(0);
+				int show_loss = cursor.getInt(1);
+				
+				Toast.makeText(getApplicationContext(), "Won = "+ show_win + " and lost = " + show_loss, Toast.LENGTH_SHORT).show();
+				
+			}
+		});
 		
-	    if (mGameService != null) {
-            // Only if the state is STATE_NONE, do we know that we haven't started already
-            if (mGameService.getState() == BluetoothGameService.STATE_NONE) {
-              // Start the Bluetooth chat services
-              mGameService.start();
-            }
-        }
 	}
 	
-	private void setupGame() {
-		final ImageButton rock = (ImageButton) findViewById(R.id.rock);
-        final ImageButton paper = (ImageButton) findViewById(R.id.paper);
-        final ImageButton scissors = (ImageButton) findViewById(R.id.scissors);
-        
-        rock.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-            	Button play = (Button)findViewById(R.id.button1);
-            	TextView tv = (TextView)findViewById(R.id.textView3); //Go
-
-    			Context context = getApplicationContext();
-    			CharSequence t = "";
-    			Float azimut;
-    			if(singlePlayer){
-	            	switch(genVal())
-	            	{
-	            		case handRock:
-	            			t = "Player2 played the same hand. Replay!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            		case handPaper:
-	            			t = "Player2 played Paper. Paper Beats Rock!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            		case handScissors:
-	            			t = "Player2 played Scissors. Rock beats Scissors!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            	}
-    			}
-            	else {
-            		String message = "Rock";
-                    sendMessage(message);
-    			}
-            	play.setVisibility(View.INVISIBLE);
-            	tv.setVisibility(View.INVISIBLE);
-            }
-        });
-        
-        paper.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-            	Button play = (Button)findViewById(R.id.button1);
-            	TextView tv = (TextView)findViewById(R.id.textView3); //Go
-
-    			Context context = getApplicationContext();
-    			CharSequence t = "";
-    			
-    			if(singlePlayer){
-	            	switch(genVal())
-	            	{
-	            		case handPaper:
-	            			t = "Player2 played the same hand. Replay!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            		case handRock:
-	            			t = "Player2 played Rock. Paper Beats Rock!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            		case handScissors:
-	            			t = "Player2 played Scissors. Scissors beats Paper!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            	}
-    			} 
-    			else {
-            		String message = "Paper";
-                    sendMessage(message);
-    			}
-            	play.setVisibility(View.INVISIBLE);
-            	tv.setVisibility(View.INVISIBLE);
-            }
-        });
-        
-        scissors.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-            	Button play = (Button)findViewById(R.id.button1);
-            	TextView tv = (TextView)findViewById(R.id.textView3); //Go
-
-    			Context context = getApplicationContext();
-    			CharSequence t = "";
-    			if(singlePlayer) {
-	            	switch(genVal())
-	            	{
-	            		case handScissors:
-	            			t = "Player2 played the same hand. Replay!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            		case handPaper:
-	            			t = "Player2 played Paper. Scissors beat Paper!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break;
-	            		case handRock:
-	            			t = "Player2 played Rock. Rock beats Scissors!";
-	            			Toast.makeText(context, t, Toast.LENGTH_SHORT).show();
-	            			break; 
-	            	}
-    			}
-    			else {
-            		String message = "Scissors";
-                    sendMessage(message);
-    			}
-            	play.setVisibility(View.INVISIBLE);
-            	tv.setVisibility(View.INVISIBLE);
-            }
-        });
-        // Initialize the BluetoothChatService to perform bluetooth connections
-        mGameService = new BluetoothGameService(this, mHandler);
-    }
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		String send = "";		
+		game_complete = false;
+		
+		if(requestCode == check && resultCode == RESULT_OK){
+			ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+			boolean check = false;
+			if( results.contains(rock)){
+				send = rock;
+				check = true;
+			}else if (results.contains(paper)){
+				send = paper;
+				check = true;
+			}else if (results.contains(scissor)){
+				send = scissor;
+				check = true;
+			}	
+									
+			if (check == false){
+				Toast.makeText(getApplicationContext(), "please try again", Toast.LENGTH_SHORT).show();
+			}else{
+				sendMessage(send);							
+			}
+			
+			
+		}
+		
+		super.onActivityResult(requestCode, resultCode, data);
+		
+	}
+	
+	private void UpdateDataBase(String winorloss)
+	{
+		int win_cnt = 0;
+		int los_cnt = 0;
+		DatabaseOperations DOP = new DatabaseOperations(cntxt);
+		
+		try{
+			Cursor cursor = DOP.retSpcfInfo(DOP, name);
+			cursor.moveToFirst();
+			win_cnt = cursor.getInt(0);
+			los_cnt = cursor.getInt(1);
+		}catch (Exception ex){
+			Log.d("Error", ex.getMessage());
+		}						
+		
+		DatabaseOperations DP = new DatabaseOperations(cntxt);
+		
+		if (winorloss.equals(won)){
+			win_cnt = win_cnt + 1;
+			DP.updateWinInfo(DP, name, win_cnt);
+			
+		}else if (winorloss.equals(lost)){
+			los_cnt = los_cnt + 1;
+			DP.updateLossInfo(DP, name, los_cnt);
+		}
+		
+	}
+	
+	private String detwinner(String user_input, String comp_input){
+		String win_lost = "";
+		
+		if (user_input.equals(rock) && comp_input.equals(scissor)){
+			win_lost = "won";
+		}
+		if (user_input.equals(rock) && comp_input.equals(paper)){
+			win_lost = "lost";
+		}
+		if (user_input.equals(scissor) && comp_input.equals(rock)){
+			win_lost = "lost";
+		}
+		if (user_input.equals(scissor) && comp_input.equals(paper)){
+			win_lost = "won";
+		}
+		if (user_input.equals(paper) && comp_input.equals(rock)){
+			win_lost = "won";
+		}
+		if (user_input.equals(paper) && comp_input.equals(scissor)){
+			win_lost = "lost";
+		}
+		if (user_input.equals(comp_input)){
+			win_lost = "draw";
+		}
+		
+		return win_lost;
+		
+	}
 	
     private void sendMessage(String message) {
         // Check that we're actually connected before trying anything
         if (mGameService.getState() != BluetoothGameService.STATE_CONNECTED) {
-            Toast.makeText(this, R.string.not_connected, Toast.LENGTH_SHORT).show();
+            //Toast.makeText(this, R.string.not_connected, Toast.LENGTH_SHORT).show();
+        	Toast.makeText(this, "Not Connected", Toast.LENGTH_SHORT).show();
             return;
         }
         // Check that there's actually something to send
@@ -253,211 +209,125 @@ public class MainActivity extends ActionBarActivity implements SensorEventListen
             mGameService.write(send);
         }
     }
-    
-	private int genVal(){
-		Random r = new Random();
-		int k = r.nextInt(3);
-		
-		return k;
-	}
 	
-	float[] mGravity;
-	float[] mGeomagnetic;
-	public void onSensorChanged(SensorEvent event) {
-	        switch (event.sensor.getType()){
-	            case Sensor.TYPE_ACCELEROMETER:
-	                mGravity = event.values;
-	                break;
-	            case Sensor.TYPE_MAGNETIC_FIELD:
-	        		mGeomagnetic = event.values;
-	        		break;
-	        	default:
-	        		break;
-	        }
-    		if (mGravity != null && mGeomagnetic != null) {
-    		      float R[] = new float[9];
-    		      float I[] = new float[9];
-    		      boolean success = SensorManager.getRotationMatrix(R, I, mGravity, mGeomagnetic);
-    		      if (success) {
-    		        float orientation[] = new float[3];
-    		        SensorManager.getOrientation(R, orientation);
-    		        azimut = orientation[0]; // orientation contains: azimut, pitch and roll
-    		      }
-    		}
-	 }
-	 
-	
-	 @Override
-	 public void onAccuracyChanged(Sensor sensor, int accuracy) { }  
-  
-	 
 	// The Handler that gets information back from the BluetoothChatService
-    private final Handler mHandler = new Handler() {
-    	
-    	
-        @Override
-        public void handleMessage(Message msg) {
-        	
-            switch (msg.what) {
-            case MESSAGE_STATE_CHANGE:
-                switch (msg.arg1) {
-                case BluetoothGameService.STATE_CONNECTED:
-                    break;
-                case BluetoothGameService.STATE_CONNECTING:
-                    break;
-                case BluetoothGameService.STATE_LISTEN:
-                	break;
-                case BluetoothGameService.STATE_NONE:
-                    break;
-                }
-                break;
-            case MESSAGE_WRITE:
-            	//result="";
+	private final Handler mHandler = new Handler() {
+	    @Override
+	    public void handleMessage(Message msg) {
+	        switch (msg.what) {
+	        case MESSAGE_STATE_CHANGE:
+	            switch (msg.arg1) {
+	            case BluetoothGameService.STATE_CONNECTED:
+	                break;
+	            case BluetoothGameService.STATE_CONNECTING:
+	                break;
+	            case BluetoothGameService.STATE_LISTEN:
+	            	break;
+	            case BluetoothGameService.STATE_NONE:
+	                break;
+	            }
+	            break;
+	        case MESSAGE_WRITE:
             	writecount++;
-            	//Log.i(getLocalClassName(), "Writecount: " +Integer.toString(writecount));
+            	
             	byte[] writeBuf = (byte[]) msg.obj;
                 // construct a string from the buffer
                 String writeMessage = new String(writeBuf);
-               // Toast.makeText(getApplicationContext(), "Writecount:"
-                 //       +writecount , Toast.LENGTH_SHORT).show();
-                Toast.makeText(getApplicationContext(), "You played "
-                        + writeMessage, Toast.LENGTH_SHORT).show();
-                writestring=writeMessage;
-                	if(readcount==1)
-                	{
-                	result=win_loss(writestring, readstring);
-                	Toast.makeText(getApplicationContext(), result
-                            , Toast.LENGTH_SHORT).show();
-                	readcount=0;
-                	writecount=0;
-                	//writeBuf = (byte[]) msg.obj;
-                    // construct a string from the buffer
-                  //  writeMessage = new String(result);
+               
+                if (writeMessage.equals("Exited")){
                 	
-                	//result="";
-                	}
-                	//write2=writeMessage;
-                	//Log.i(getLocalClassName(),"Calling result Writecount=" +Integer.toString(writecount));
-                	//String res=setString(writeMessage);
-                	//if(res!="")
-                	
-                //}
-                
+                }
+                else{
+                	Toast.makeText(getApplicationContext(), "You played "
+                			+ writeMessage, Toast.LENGTH_SHORT).show();
+                    writestring=writeMessage;
+                    	if(readcount==1)
+                    	{
+                    		result=detwinner(writestring, readstring);
+                    		Toast.makeText(getApplicationContext(), "Opponent Played "+ readstring + " You " + result
+                    				, Toast.LENGTH_SHORT).show();
+                    		UpdateDataBase(result);              
+                    		game_complete = true;
+                    		readcount=0;
+                    		writecount=0;
+                    		writestring="";
+                    		readstring="";
+                    		GameExit(game_complete);
+                    	}
+                }
+                                        	                
                 break;
-            case MESSAGE_READ:
-            	readcount++;
-            	//Log.i(getLocalClassName(), "Readcount: "+Integer.toString(readcount));
-            	byte[] readBuf = (byte[]) msg.obj;
+	        case MESSAGE_READ:
+	        	readcount++;
             	
+            	byte[] readBuf = (byte[]) msg.obj;            	
                 // construct a string from the valid bytes in the buffer
             	String readMessage = new String(readBuf, 0, msg.arg1);
-            	readstring=readMessage;
-            	if(readcount==1 && writecount!=1){Toast.makeText(getApplicationContext(), "Your turn"
-                              , Toast.LENGTH_SHORT).show();  }
-            	if(writecount==1)
+            	if (readMessage.equals("Exited"))
             	{
-            		result=win_loss(writestring, readstring);
-            		Toast.makeText(getApplicationContext(), result 
-                            , Toast.LENGTH_SHORT).show();
-                	writecount=0;
-                	readcount=0;
+            		Toast.makeText(getApplicationContext(), "Opponent Left"
+                            , Toast.LENGTH_LONG).show();
+            	}else{
+            		readstring=readMessage;
+                	if(readcount==1 && writecount!=1){Toast.makeText(getApplicationContext(), "Your turn"
+                                  , Toast.LENGTH_SHORT).show();  }
+                	if(writecount==1)
+                	{
+                		result=detwinner(writestring, readstring);
+                		Toast.makeText(getApplicationContext(), "Opponent Played "+ readstring + " You " + result 
+                                , Toast.LENGTH_SHORT).show();
+                		UpdateDataBase(result);
+                		game_complete = true;
+                    	writecount=0;
+                    	readcount=0;
+                    	readstring="";
+                    	writestring="";
+                    	GameExit(game_complete);
+                	}
             	}
-              //   Toast.makeText(getApplicationContext(), "Your turn "
-                //        , Toast.LENGTH_SHORT).show();    
-                //res=win_loss(writem,readMessage);
-                
-                //{
-                	//result=win_loss(write2, write1);
-                	//Toast.makeText(getApplicationContext(),"Read count" +Integer.toString(readcount), Toast.LENGTH_SHORT).show();
-               // }
-                	
+            	
                 break;
-            case MESSAGE_DEVICE_NAME:
-                // save the connected device's name
-                mConnectedDeviceName = msg.getData().getString(DEVICE_NAME);
-                Toast.makeText(getApplicationContext(), "Connected to "
-                               + mConnectedDeviceName, Toast.LENGTH_SHORT).show();
-                break;
-            case MESSAGE_TOAST:
-                Toast.makeText(getApplicationContext(), msg.getData().getString(TOAST),
-                               Toast.LENGTH_SHORT).show();
-                break;
-            }
-        }
-    };
-	 
-   
-	@Override 
-	protected void onActivityResult (int requestCode, int resultCode, Intent data){
-		switch(requestCode){
-			case REQUEST_CONNECT_DEVICE:
-				if (resultCode == Activity.RESULT_OK) {
-					// When DeviceListActivity returns with a device to connect
-					String address = data.getExtras().getString("deviceaddr");
-					// Get the BLuetoothDevice object
-	                BluetoothDevice device = btAdp.getRemoteDevice(address);
-
-	        		if (mGameService == null) setupGame();
-	        		
-	                mGameService.connect(device);
-				}
-	        break;
-			case REQUEST_ENABLE_BT:
-	           if(btAdp.isEnabled()) {
-	               Toast.makeText(MainActivity.this,"Status: Enabled",Toast.LENGTH_LONG).show();
-
-	               Intent btActStart = new Intent(MainActivity.this,BtMainActivity.class);
-	               startActivityForResult(btActStart, REQUEST_CONNECT_DEVICE);
-	           } else {
-	        	   Toast.makeText(MainActivity.this,"Status: Disabled",Toast.LENGTH_LONG).show();
-	           }
-	        break;
+	        case MESSAGE_DEVICE_NAME:
+	            // save the connected device's name
+	            mConnectedDeviceName = msg.getData().getString(DEVICE_NAME);
+	            Toast.makeText(getApplicationContext(), "Connected to "
+	                           + mConnectedDeviceName, Toast.LENGTH_SHORT).show();
+	            break;
+	        case MESSAGE_TOAST:
+	            Toast.makeText(getApplicationContext(), msg.getData().getString(TOAST),
+	                           Toast.LENGTH_SHORT).show();
+	            break;
+	        }
 	    }
-	}
+	};
 	
-	public String win_loss(String s1,String s2)
-	{
-		
-		String result="";
-		if(s1.equals("")){result="Please select response";}
-		if(s1.equals(s2)){result="Opponent selected "+s2+" It's a draw";}
-		else if(s1.equals("Rock") && s2.equals("Paper")) {result="Opponent selected "+s2+" Opponent Wins";}
-		else if(s1.equals("Rock") && s2.equals("Scissors")) {result="Opponent selected "+s2+" You Win";}
-		else if(s1.equals("Paper") && s2.equals("Rock")) {result="Opponent selected "+s2+" You Win";}
-		else if(s1.equals("Paper") && s2.equals("Scissors")) {result="Opponent selected "+s2+" Opponent Wins";}
-		else if(s1.equals("Scissors") && s2.equals("Paper")) {result="Opponent selected "+s2+" You Win";}
-		else if(s1.equals("Scissors") && s2.equals("Rock")) {result="Opponent selected "+s2+" Opponent Wins";}
-		return result;
-		
-	}
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		// Inflate the menu; this adds items to the action bar if it is present.
-		getMenuInflater().inflate(R.menu.main, menu);
-		return true;
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		// Handle action bar item clicks here. The action bar will
-		// automatically handle clicks on the Home/Up button, so long
-		// as you specify a parent activity in AndroidManifest.xml.
-		int id = item.getItemId();
-		if (id == R.id.action_settings) {
-			return true;
+	private void GameExit(boolean game_check){
+		if (game_check == true){
+			mAdapter = BluetoothAdapter.getDefaultAdapter();
+			AlertDialog.Builder gamecontinue = new AlertDialog.Builder(cntxt);
+			gamecontinue.setMessage("Want to Play Again?")
+						.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+							
+							@Override
+							public void onClick(DialogInterface dialog, int which) {
+								// TODO Auto-generated method stub
+								
+							}
+						})
+						.setNegativeButton("No", new DialogInterface.OnClickListener() {
+							
+							@Override
+							public void onClick(DialogInterface dialog, int which) {
+								// TODO Auto-generated method stub									
+								String exit_message = "Exited";
+								sendMessage(exit_message);
+								mAdapter.disable();
+								finish();
+							}
+						});
+			AlertDialog alertDialog = gamecontinue.create();
+			alertDialog.show();
 		}
-		return super.onOptionsItemSelected(item);
 	}
 	
-	@Override
-	protected void onStop() {
-	    super.onStop();
-	    sensorManager.unregisterListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER));
-	    sensorManager.unregisterListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR));
-	}
-	
-	@Override
-	protected void onDestroy() {
-		super.onDestroy();
-	}
 }
