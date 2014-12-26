@@ -1,6 +1,5 @@
 package com.example.rps;
 
-
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
