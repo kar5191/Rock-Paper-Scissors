@@ -1,0 +1,233 @@
+package com.example.rps;
+
+import java.util.Set;
+
+import android.support.v7.app.ActionBarActivity;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.content.Context;
+import android.content.Intent;
+import android.database.Cursor;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ListView;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.Toast;
+import android.view.View.OnClickListener;
+
+
+public class MainActivity extends ActionBarActivity {
+
+	String user_name;
+	String user_age;
+	String user_sex;
+	EditText username;
+	EditText age;
+	Button btn;
+	Button btn1;
+	RadioGroup radiosexgrp;
+	RadioButton radiosexbtn;
+	Context context = this;
+	
+	private static final int REQUEST_CONNECT_DEVICE = 1;
+	private static final int REQUEST_ENABLE_BT      = 2;
+	
+	BluetoothAdapter btAdp;
+	
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        
+        btn = (Button) findViewById(R.id.button1);
+        btn1 = (Button) findViewById(R.id.button2);
+        username = (EditText) findViewById(R.id.editText1);
+        age = (EditText) findViewById(R.id.editText2);
+        radiosexgrp = (RadioGroup) findViewById(R.id.radioGroup1);
+        
+        btAdp = BluetoothAdapter.getDefaultAdapter();
+        
+        
+        btn.setOnClickListener(new OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				
+				int selected;
+		        user_name = username.getText().toString();
+		        user_age = age.getText().toString().trim();
+		        selected = radiosexgrp.getCheckedRadioButtonId();
+		        btn = (RadioButton) findViewById(selected);
+		        user_sex = btn.getText().toString();
+		        
+		        boolean validated = ValidateUser(user_name, user_age, user_sex);
+		        
+		        if( validated == true){
+		        	Intent intent = new Intent(getApplicationContext(), GamePlayScreen.class);
+		        	intent.putExtra("user", user_name);
+		        	intent.putExtra("Welcome", "Welcome");
+		        	startActivity(intent);
+		        }else{
+		        	return;
+		        }		        			       
+			}
+		});        
+        
+        btn1.setOnClickListener(new OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				int selected;
+		        user_name = username.getText().toString();
+		        user_age = age.getText().toString().trim();
+		        selected = radiosexgrp.getCheckedRadioButtonId();
+		        btn = (RadioButton) findViewById(selected);
+		        user_sex = btn.getText().toString();
+				
+		        boolean validated = ValidateUser(user_name, user_age, user_sex);
+		        
+		        if (validated == true){
+					if(btAdp == null){
+						Toast.makeText(MainActivity.this, "No BlueTooth adapter found", Toast.LENGTH_LONG).show();
+					}else{
+						if (!btAdp.isEnabled()) {
+				            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+				            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+				        } else {
+				        	Intent btActStart = new Intent(MainActivity.this,BtMainActivity.class);
+				            startActivityForResult(btActStart, REQUEST_CONNECT_DEVICE);
+				        	//Intent btActStart = new Intent(MainActivity.this,BtMainActivity.class);
+				        	//startActivity(btActStart);
+				        }
+					}
+		        }
+			}
+		});
+    }
+    
+    public boolean ValidateUser(String user_name, String user_age, String user_sex)
+    {
+    	boolean user_validated = false;
+    	
+    	if (user_name.matches(""))
+		{
+			messageBox("Error", "Please Enter User Name");
+			user_validated = false;
+			return user_validated;
+		}else if( user_age.isEmpty() || user_age.length() == 0 || user_age.equals("") || user_age == null)
+		{
+			messageBox("Error", "Please Enter Age");
+			user_validated = false;
+			return user_validated;
+		}			
+		
+		DatabaseOperations DO = new DatabaseOperations(context);
+		
+		Cursor cr = DO.retrieveInfo(DO);
+		cr.moveToFirst();
+		int s = cr.getCount();
+		
+		boolean userchk = false;
+		if(s > 0){
+			do{
+				if ( user_name.equals(cr.getString(0)) && user_age.equals(cr.getString(1)) && user_sex.equals(cr.getString(2))){
+					userchk = true;
+					user_validated = true;
+					return user_validated;	
+				}else if (user_name.equals(cr.getString(0))){
+					messageBox("Duplicate", "username already exists");
+					userchk = true;
+					user_validated = false;
+					return user_validated;
+				}
+			}while (cr.moveToNext());
+		
+			if ( userchk == false){
+				DO.insertInfo(DO, user_name, user_age, user_sex);
+				user_validated = true;
+				return user_validated;
+			}
+		}else{
+			DO.insertInfo(DO, user_name, user_age, user_sex);
+			user_validated = true;
+			return user_validated;
+		}
+		
+		return user_validated;
+    }
+
+    public void messageBox(String method, String message)
+    {
+        Log.d("EXCEPTION: " + method,  message);
+
+        AlertDialog.Builder messageBox = new AlertDialog.Builder(this);
+        messageBox.setTitle(method);
+        messageBox.setMessage(message);
+        messageBox.setCancelable(false);
+        messageBox.setNeutralButton("OK", null);
+        messageBox.show();
+    }
+    
+    @Override 
+	protected void onActivityResult (int requestCode, int resultCode, Intent data){
+    	//mGameService = new BluetoothGameService(this, mHandler);
+		switch(requestCode){
+			case REQUEST_CONNECT_DEVICE:
+				if (resultCode == Activity.RESULT_OK) {
+					// When DeviceListActivity returns with a device to connect
+					String address = data.getExtras().getString("deviceaddr");
+					// Get the BLuetoothDevice object
+	                BluetoothDevice device = btAdp.getRemoteDevice(address);
+
+	                //mGameService.connect(device);
+	        		
+	                Intent intent = new Intent(MainActivity.this, BluetoothGameScreen.class);
+		        	intent.putExtra("user", user_name);
+		        	intent.putExtra("device", device);
+	        		startActivity(intent);
+	        		
+				}
+	        break;
+			case REQUEST_ENABLE_BT:
+	           if(btAdp.isEnabled()) {
+	               Toast.makeText(MainActivity.this,"Status: Enabled",Toast.LENGTH_LONG).show();
+
+	               Intent btActStart = new Intent(MainActivity.this,BtMainActivity.class);
+	               startActivityForResult(btActStart, REQUEST_CONNECT_DEVICE);
+	           } else {
+	        	   Toast.makeText(MainActivity.this,"Status: Disabled",Toast.LENGTH_LONG).show();
+	           }
+	        break;
+	    }
+	}
+    
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+        if (id == R.id.action_settings) {
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+}
